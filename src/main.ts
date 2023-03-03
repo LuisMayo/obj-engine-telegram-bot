@@ -1,4 +1,4 @@
-import { MyContext, OE_RPC_Client } from "../deps.ts";
+import { InputFile, MyContext, OE_RPC_Client } from "../deps.ts";
 import { Bot, hydrateFiles } from "../deps.ts";
 import { BotMsg } from "./message.ts";
 import { Queue } from "./queue.ts";
@@ -43,6 +43,11 @@ function main() {
       { parse_mode: "Markdown" },
     );
   });
+  bot.command("queue", (ctx) => {
+    rpc.getQueueLength()
+      .then((val) => ctx.reply(val.toString()))
+      .catch(() => ctx.reply("Error while getting queue length"));
+  });
   bot.on("message:forward_date", (ctx) => {
     addQueueMessageToQueue(queueMap, ctx as MyContext);
   });
@@ -62,7 +67,7 @@ function addQueueMessageToQueue(queueMap: Map<number, Queue>, ctx: MyContext) {
     if (queue.lastTimer) {
       clearTimeout(queue.lastTimer);
     }
-    queue.msgList.push(new BotMsg(ctx));
+    queue.msgList.push(new BotMsg(ctx, queue.dir));
     queue.lastTimer = setTimeout(() => {
       doRender(queueMap, chatId, queue, ctx);
     }, 5 * 1000);
@@ -75,7 +80,7 @@ function doRender(
   queue: Queue,
   ctx: MyContext,
 ) {
-  const dir = Deno.makeTempDirSync();
+  const dir = queue.dir;
   const filename = dir + "/file.mp4";
   queueMap.delete(chatId);
   const pendingTasks = pendingIds.filter((num) => num === chatId).length;
@@ -84,6 +89,9 @@ function doRender(
     reptitions: pendingTasks,
   });
   pendingIds.push(chatId);
+  ctx.reply(
+    "Hi, this bot is testing new code. If you notice anything that shouldn't be happening please talk @TLuigi003 ",
+  );
   rpc.getQueueLength().then((val) => {
     ctx.reply(
       `Render in progress, there are ${val} people in queue before you`,
@@ -97,11 +105,10 @@ function doRender(
     resolution_scale: 2,
     output_filename: filename,
   }, { priority }).then((value) => {
-    ctx.replyWithVideo(value.url).catch(ctx.reply).finally(() =>
-      Deno.remove(dir, { recursive: true })
-    );
+    const file = new InputFile(value.url);
+    ctx.replyWithVideo(file).catch(ctx.reply).finally(() => queue.clear());
   }).catch((e) => {
-    Deno.remove(dir, { recursive: true });
+    queue.clear();
     ctx.reply(e);
   })
     .finally(() => {
