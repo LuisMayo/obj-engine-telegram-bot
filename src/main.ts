@@ -7,6 +7,12 @@ const envTokenVariable = "OE_TELGRAM_TOKEN";
 if (!Deno.env.get(envTokenVariable)) {
   Deno.exit(1);
 }
+
+globalThis.addEventListener("unhandledrejection", (e) => {
+  console.log("unhandled rejection at:", e.promise, "reason:", e.reason);
+  e.preventDefault();
+});
+
 // DA is valid due to the env
 const pendingIds: number[] = [];
 const bot = new Bot(Deno.env.get(envTokenVariable)!);
